@@ -35,9 +35,10 @@ else:
     conn.execute(
     '''CREATE TABLE "clients" (
     "id"	INTEGER NOT NULL UNIQUE,
-    "discord_username"	TEXT NOT NULL UNIQUE,
+    "discord_id"	TEXT NOT NULL UNIQUE,
     "email"	TEXT,
     "jellyfin_username" TEXT,
+    "emby_username" TEXT,
     PRIMARY KEY("id" AUTOINCREMENT)
     );''')
 
@@ -45,10 +46,10 @@ update_table(conn, DB_TABLE)
 
 def save_user_email(username, email):
     if username and email:
-        conn.execute(f"""
-            INSERT OR REPLACE INTO clients(discord_username, email)
-            VALUES('{username}', '{email}')
-        """)
+        conn.execute(
+            "INSERT OR REPLACE INTO clients(discord_id, email) VALUES(?, ?)",
+            (username, email)
+        )
         conn.commit()
         print("User added to db.")
     else:
@@ -56,18 +57,18 @@ def save_user_email(username, email):
 
 def save_user(username):
     if username:
-        conn.execute("INSERT INTO clients (discord_username) VALUES ('"+ username +"')")
+        conn.execute("INSERT INTO clients (discord_id) VALUES (?)", (username,))
         conn.commit()
         print("User added to db.")
     else:
         return "Username cannot be empty"
-    
+
 def save_user_jellyfin(username, jellyfin_username):
     if username and jellyfin_username:
-        conn.execute(f"""
-            INSERT OR REPLACE INTO clients(discord_username, jellyfin_username)
-            VALUES('{username}', '{jellyfin_username}')
-        """)
+        conn.execute(
+            "INSERT OR REPLACE INTO clients(discord_id, jellyfin_username) VALUES(?, ?)",
+            (username, jellyfin_username)
+        )
         conn.commit()
         print("User added to db.")
     else:
@@ -75,10 +76,10 @@ def save_user_jellyfin(username, jellyfin_username):
 
 def save_user_all(username, email, jellyfin_username):
     if username and email and jellyfin_username:
-        conn.execute(f"""
-            INSERT OR REPLACE INTO clients(discord_username, email, jellyfin_username)
-            VALUES('{username}', '{email}', '{jellyfin_username}')
-        """)
+        conn.execute(
+            "INSERT OR REPLACE INTO clients(discord_id, email, jellyfin_username) VALUES(?, ?, ?)",
+            (username, email, jellyfin_username)
+        )
         conn.commit()
         print("User added to db.")
     elif username and email:
@@ -93,7 +94,10 @@ def save_user_all(username, email, jellyfin_username):
 def get_useremail(username):
     if username:
         try:
-            cursor = conn.execute('SELECT discord_username, email from clients where discord_username="{}";'.format(username))
+            cursor = conn.execute(
+                "SELECT discord_id, email FROM clients WHERE discord_id = ?",
+                (username,)
+            )
             for row in cursor:
                 email = row[1]
             if email:
@@ -107,15 +111,18 @@ def get_useremail(username):
 
 def get_jellyfin_username(username):
     """
-    Get jellyfin username of user based on discord username
+    Get jellyfin username of user based on discord user id
 
-    param   username: discord username
+    param   username: discord user id
 
     return  jellyfin username
     """
     if username:
         try:
-            cursor = conn.execute('SELECT discord_username, jellyfin_username from clients where discord_username="{}";'.format(username))
+            cursor = conn.execute(
+                "SELECT discord_id, jellyfin_username FROM clients WHERE discord_id = ?",
+                (username,)
+            )
             for row in cursor:
                 jellyfin_username = row[1]
             if jellyfin_username:
@@ -132,7 +139,7 @@ def remove_email(username):
     Sets email of discord user to null in database
     """
     if username:
-        conn.execute(f"UPDATE clients SET email = null WHERE discord_username = '{username}'")
+        conn.execute("UPDATE clients SET email = NULL WHERE discord_id = ?", (username,))
         conn.commit()
         print(f"Email removed from user {username} in database")
         return True
@@ -145,9 +152,54 @@ def remove_jellyfin(username):
     Sets jellyfin username of discord user to null in database
     """
     if username:
-        conn.execute(f"UPDATE clients SET jellyfin_username = null WHERE discord_username = '{username}'")
+        conn.execute("UPDATE clients SET jellyfin_username = NULL WHERE discord_id = ?", (username,))
         conn.commit()
         print(f"Jellyfin username removed from user {username} in database")
+        return True
+    else:
+        print(f"Username cannot be empty.")
+        return False
+
+def save_user_emby(username, emby_username):
+    if username and emby_username:
+        conn.execute(
+            "INSERT OR REPLACE INTO clients(discord_id, emby_username) VALUES(?, ?)",
+            (username, emby_username)
+        )
+        conn.commit()
+        print("User added to db.")
+    else:
+        return "Discord and Emby usernames cannot be empty"
+
+def get_emby_username(username):
+    """
+    Get emby username of user based on discord user id
+    """
+    if username:
+        try:
+            cursor = conn.execute(
+                "SELECT discord_id, emby_username FROM clients WHERE discord_id = ?",
+                (username,)
+            )
+            for row in cursor:
+                emby_username = row[1]
+            if emby_username:
+                return emby_username
+            else:
+                return "No users found"
+        except:
+            return "error in fetching from db"
+    else:
+        return "username cannot be empty"
+
+def remove_emby(username):
+    """
+    Sets emby username of discord user to null in database
+    """
+    if username:
+        conn.execute("UPDATE clients SET emby_username = NULL WHERE discord_id = ?", (username,))
+        conn.commit()
+        print(f"Emby username removed from user {username} in database")
         return True
     else:
         print(f"Username cannot be empty.")
@@ -157,7 +209,7 @@ def remove_jellyfin(username):
 def delete_user(username):
     if username:
         try:
-            conn.execute('DELETE from clients where discord_username="{}";'.format(username))
+            conn.execute("DELETE FROM clients WHERE discord_id = ?", (username,))
             conn.commit()
             return True
         except:
@@ -171,6 +223,5 @@ def read_all():
     rows = cur.fetchall()
     all = []
     for row in rows:
-        #print(row[1]+' '+row[2])
         all.append(row)
     return all

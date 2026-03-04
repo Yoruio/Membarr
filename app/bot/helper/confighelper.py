@@ -12,7 +12,9 @@ config = configparser.ConfigParser()
 CONFIG_KEYS = ['username', 'password', 'discord_bot_token', 'plex_user', 'plex_pass', 'plex_token',
                 'plex_base_url', 'plex_roles', 'plex_server_name', 'plex_libs', 'owner_id', 'channel_id',
                 'auto_remove_user', 'jellyfin_api_key', 'jellyfin_server_url', 'jellyfin_roles',
-                'jellyfin_libs', 'plex_enabled', 'jellyfin_enabled', 'jellyfin_external_url']
+                'jellyfin_libs', 'plex_enabled', 'jellyfin_enabled', 'jellyfin_external_url',
+                'emby_api_key', 'emby_server_url', 'emby_roles', 'emby_libs', 'emby_enabled',
+                'emby_external_url']
 
 # settings
 Discord_bot_token = ""
@@ -29,6 +31,13 @@ jellyfin_libs = ""
 jellyfin_roles = None
 plex_configured = True
 jellyfin_configured = True
+EMBY_SERVER_URL = ""
+EMBY_API_KEY = ""
+EMBY_EXTERNAL_URL = ""
+emby_libs = ""
+emby_roles = None
+emby_configured = True
+USE_EMBY = False
 
 switch = 0 
 
@@ -152,6 +161,51 @@ try:
 except:
     print("Could not get Plex enable config. Defaulting to False")
     USE_PLEX = False
+
+# Get Emby config
+try:
+    EMBY_SERVER_URL = config.get(BOT_SECTION, 'emby_server_url')
+    EMBY_API_KEY = config.get(BOT_SECTION, "emby_api_key")
+except:
+    print("Could not load Emby config")
+    emby_configured = False
+
+try:
+    EMBY_EXTERNAL_URL = config.get(BOT_SECTION, "emby_external_url")
+    if not EMBY_EXTERNAL_URL:
+        EMBY_EXTERNAL_URL = EMBY_SERVER_URL
+except:
+    EMBY_EXTERNAL_URL = EMBY_SERVER_URL
+    print("Could not get Emby external url. Defaulting to server url.")
+
+# Get Emby roles config
+try:
+    emby_roles = config.get(BOT_SECTION, 'emby_roles')
+except:
+    print("Could not get Emby roles config")
+    emby_roles = None
+if emby_roles:
+    emby_roles = list(emby_roles.split(','))
+else:
+    emby_roles = []
+
+# Get Emby libs config
+try:
+    emby_libs = config.get(BOT_SECTION, 'emby_libs')
+except:
+    print("Could not get Emby libs config. Defaulting to all libraries.")
+    emby_libs = None
+if emby_libs is None:
+    emby_libs = ["all"]
+else:
+    emby_libs = list(emby_libs.split(','))
+
+try:
+    USE_EMBY = config.get(BOT_SECTION, 'emby_enabled')
+    USE_EMBY = USE_EMBY.lower() == "true"
+except:
+    print("Could not get Emby enable config. Defaulting to False")
+    USE_EMBY = False
 
 def get_config():
     """

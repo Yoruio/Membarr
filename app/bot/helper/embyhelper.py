@@ -2,11 +2,11 @@ import requests
 import random
 import string
 
-def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
+def add_user(emby_url, emby_api_key, username, password, emby_libs):
     try:
-        url = f"{jellyfin_url}/Users/New"
+        url = f"{emby_url}/Users/New"
 
-        querystring = {"api_key":jellyfin_api_key}
+        querystring = {"api_key": emby_api_key}
         payload = {
             "Name": username,
             "Password": password
@@ -16,26 +16,26 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
         userId = response.json()["Id"]
 
         if response.status_code != 200:
-            print(f"Error creating new Jellyfin user: {response.text}")
+            print(f"Error creating new Emby user: {response.text}")
             return False
-        
-        # Grant access to User
-        url = f"{jellyfin_url}/Users/{userId}/Policy"
 
-        querystring = {"api_key":jellyfin_api_key}
+        # Grant access to User
+        url = f"{emby_url}/Users/{userId}/Policy"
+
+        querystring = {"api_key": emby_api_key}
 
         enabled_folders = []
-        server_libs = get_libraries(jellyfin_url, jellyfin_api_key)
-        
-        if jellyfin_libs[0] != "all":
-            for lib in jellyfin_libs:
+        server_libs = get_libraries(emby_url, emby_api_key)
+
+        if emby_libs[0] != "all":
+            for lib in emby_libs:
                 found = False
                 for server_lib in server_libs:
                     if lib == server_lib['Name']:
                         enabled_folders.append(server_lib['ItemId'])
                         found = True
                 if not found:
-                    print(f"Couldn't find Jellyfin Library: {lib}")
+                    print(f"Couldn't find Emby Library: {lib}")
 
         payload = {
             "IsAdministrator": False,
@@ -65,7 +65,7 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
             "EnabledChannels": [],
             "EnableAllChannels": False,
             "EnabledFolders": enabled_folders,
-            "EnableAllFolders": jellyfin_libs[0] == "all",
+            "EnableAllFolders": emby_libs[0] == "all",
             "InvalidLoginAttemptCount": 0,
             "LoginAttemptsBeforeLockout": -1,
             "MaxActiveSessions": 0,
@@ -73,9 +73,6 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
             "BlockedMediaFolders": [],
             "BlockedChannels": [],
             "RemoteClientBitrateLimit": 0,
-            "AuthenticationProviderId": "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
-            "PasswordResetProviderId": "Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider",
-            "SyncPlayAccess": "CreateAndJoinGroups"
         }
         headers = {"content-type": "application/json"}
 
@@ -90,65 +87,54 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
         print(e)
         return False
 
-def get_libraries(jellyfin_url, jellyfin_api_key):
-    url = f"{jellyfin_url}/Library/VirtualFolders"
-    querystring = {"api_key":jellyfin_api_key}
+def get_libraries(emby_url, emby_api_key):
+    url = f"{emby_url}/Library/VirtualFolders"
+    querystring = {"api_key": emby_api_key}
     response = requests.request("GET", url, params=querystring)
+    return response.json()
 
-    return  response.json()
-    
-
-def verify_username(jellyfin_url, jellyfin_api_key, username):
-    users = get_users(jellyfin_url, jellyfin_api_key)
-    valid = True
+def verify_username(emby_url, emby_api_key, username):
+    users = get_users(emby_url, emby_api_key)
     for user in users:
         if user['Name'] == username:
-            valid = False
-            break
+            return False
+    return True
 
-    return valid
-
-def remove_user(jellyfin_url, jellyfin_api_key, jellyfin_username):
+def remove_user(emby_url, emby_api_key, emby_username):
     try:
-        # Get User ID
-        users = get_users(jellyfin_url, jellyfin_api_key)
+        users = get_users(emby_url, emby_api_key)
         userId = None
         for user in users:
-            if user['Name'].lower() == jellyfin_username.lower():
+            if user['Name'].lower() == emby_username.lower():
                 userId = user['Id']
-        
-        if userId is None:
-            # User not found
-            print(f"Error removing user {jellyfin_username} from Jellyfin: Could not find user.")
-            return False
-        
-        # Delete User
-        url = f"{jellyfin_url}/Users/{userId}"
 
-        querystring = {"api_key":jellyfin_api_key}
+        if userId is None:
+            print(f"Error removing user {emby_username} from Emby: Could not find user.")
+            return False
+
+        url = f"{emby_url}/Users/{userId}"
+        querystring = {"api_key": emby_api_key}
         response = requests.request("DELETE", url, params=querystring)
 
         if response.status_code == 204 or response.status_code == 200:
             return True
         else:
-            print(f"Error deleting Jellyfin user: {response.text}")
+            print(f"Error deleting Emby user: {response.text}")
     except Exception as e:
         print(e)
         return False
 
-def get_users(jellyfin_url, jellyfin_api_key):
-    url = f"{jellyfin_url}/Users"
-
-    querystring = {"api_key":jellyfin_api_key}
+def get_users(emby_url, emby_api_key):
+    url = f"{emby_url}/Users"
+    querystring = {"api_key": emby_api_key}
     response = requests.request("GET", url, params=querystring)
-
     return response.json()
 
 def generate_password(length, lower=True, upper=True, numbers=True, symbols=True):
     character_list = []
     if not (lower or upper or numbers or symbols):
         raise ValueError("At least one character type must be provided")
-        
+
     if lower:
         character_list += string.ascii_lowercase
     if upper:
@@ -160,22 +146,20 @@ def generate_password(length, lower=True, upper=True, numbers=True, symbols=True
 
     return "".join(random.choice(character_list) for i in range(length))
 
-def get_config(jellyfin_url, jellyfin_api_key):
-    url = f"{jellyfin_url}/System/Configuration"
-
-    querystring = {"api_key":jellyfin_api_key}
+def get_config(emby_url, emby_api_key):
+    url = f"{emby_url}/System/Configuration"
+    querystring = {"api_key": emby_api_key}
     response = requests.request("GET", url, params=querystring, timeout=5)
     return response.json()
 
-def get_status(jellyfin_url, jellyfin_api_key):
-    url = f"{jellyfin_url}/System/Configuration"
-
-    querystring = {"api_key":jellyfin_api_key}
+def get_status(emby_url, emby_api_key):
+    url = f"{emby_url}/System/Configuration"
+    querystring = {"api_key": emby_api_key}
     response = requests.request("GET", url, params=querystring, timeout=5)
     return response.status_code
 
-def authenticate_user(jellyfin_url: str, username: str, password: str) -> bool:
-    url = f"{jellyfin_url}/Users/AuthenticateByName"
+def authenticate_user(emby_url: str, username: str, password: str) -> bool:
+    url = f"{emby_url}/Users/AuthenticateByName"
     headers = {
         "Content-Type": "application/json",
         "X-Emby-Authorization": (

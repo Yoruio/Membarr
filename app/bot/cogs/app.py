@@ -1,4 +1,3 @@
-from pickle import FALSE
 import app.bot.helper.jellyfinhelper as jelly
 from app.bot.helper.textformat import bcolors
 import discord
@@ -10,6 +9,7 @@ from plexapi.server import PlexServer
 import app.bot.helper.db as db
 import app.bot.helper.plexhelper as plexhelper
 import app.bot.helper.jellyfinhelper as jelly
+import app.bot.helper.embyhelper as embyhelper
 import texttable
 from app.bot.helper.message import *
 from app.bot.helper.confighelper import *
@@ -19,6 +19,7 @@ BOT_SECTION = 'bot_envs'
 
 plex_configured = True
 jellyfin_configured = True
+emby_configured = True
 
 config = configparser.ConfigParser()
 config.read(CONFIG_PATH)
@@ -110,6 +111,47 @@ except:
     JELLYFIN_EXTERNAL_URL = JELLYFIN_SERVER_URL
     print("Could not get Jellyfin external url. Defaulting to server url.")
 
+# Get Emby config
+try:
+    EMBY_SERVER_URL = config.get(BOT_SECTION, 'emby_server_url')
+    EMBY_API_KEY = config.get(BOT_SECTION, "emby_api_key")
+except:
+    emby_configured = False
+
+# Get Emby roles config
+try:
+    emby_roles = config.get(BOT_SECTION, 'emby_roles')
+except:
+    emby_roles = None
+if emby_roles:
+    emby_roles = list(emby_roles.split(','))
+else:
+    emby_roles = []
+
+# Get Emby libs config
+try:
+    emby_libs = config.get(BOT_SECTION, 'emby_libs')
+except:
+    emby_libs = None
+if emby_libs is None:
+    emby_libs = ["all"]
+else:
+    emby_libs = list(emby_libs.split(','))
+
+try:
+    USE_EMBY = config.get(BOT_SECTION, 'emby_enabled')
+    USE_EMBY = USE_EMBY.lower() == "true"
+except:
+    USE_EMBY = False
+
+try:
+    EMBY_EXTERNAL_URL = config.get(BOT_SECTION, "emby_external_url")
+    if not EMBY_EXTERNAL_URL:
+        EMBY_EXTERNAL_URL = EMBY_SERVER_URL
+except:
+    EMBY_EXTERNAL_URL = EMBY_SERVER_URL if emby_configured else ""
+    print("Could not get Emby external url. Defaulting to server url.")
+
 if USE_PLEX and plex_configured:
     try:
         print("Connecting to Plex......")
@@ -129,11 +171,87 @@ else:
     print(f"Plex {'disabled' if not USE_PLEX else 'not configured'}. Skipping Plex login.")
 
 
+class EmbyRegisterModal(discord.ui.Modal, title="Link Emby Account"):
+    username = discord.ui.TextInput(label="Emby Username", required=True, max_length=100)
+    password = discord.ui.TextInput(label="Password", required=True, max_length=200, style=discord.TextStyle.short)
+
+    def __init__(self, emby_url: str, emby_api_key: str):
+        super().__init__()
+        self.emby_url = emby_url
+        self.emby_api_key = emby_api_key
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        username = self.username.value
+        password = self.password.value
+        success = await asyncio.to_thread(embyhelper.authenticate_user, self.emby_url, username, password)
+        if success:
+            db.save_user_emby(str(interaction.user.id), username)
+            await interaction.followup.send(f"Your Emby account **{username}** has been linked to your Discord account.", ephemeral=True)
+        else:
+            await interaction.followup.send("Invalid credentials. Please check your Emby username and password.", ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        print(error)
+        await interaction.followup.send("Something went wrong. Please try again later.", ephemeral=True)
+
+
+class JellyfinRegisterModal(discord.ui.Modal, title="Link Jellyfin Account"):
+    username = discord.ui.TextInput(label="Jellyfin Username", required=True, max_length=100)
+    password = discord.ui.TextInput(label="Password", required=True, max_length=200, style=discord.TextStyle.short)
+
+    def __init__(self, jellyfin_url: str, jellyfin_api_key: str):
+        super().__init__()
+        self.jellyfin_url = jellyfin_url
+        self.jellyfin_api_key = jellyfin_api_key
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        username = self.username.value
+        password = self.password.value
+        success = await asyncio.to_thread(jelly.authenticate_user, self.jellyfin_url, username, password)
+        if success:
+            db.save_user_jellyfin(str(interaction.user.id), username)
+            await interaction.followup.send(f"Your Jellyfin account **{username}** has been linked to your Discord account.", ephemeral=True)
+        else:
+            await interaction.followup.send("Invalid credentials. Please check your Jellyfin username and password.", ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        print(error)
+        await interaction.followup.send("Something went wrong. Please try again later.", ephemeral=True)
+
+
+class PlexRegisterModal(discord.ui.Modal, title="Link Plex Account"):
+    username = discord.ui.TextInput(label="Plex Username or Email", required=True, max_length=200)
+    password = discord.ui.TextInput(label="Password", required=True, max_length=200, style=discord.TextStyle.short)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        username = self.username.value
+        password = self.password.value
+        try:
+            email = await asyncio.to_thread(plexhelper.authenticate_user, username, password)
+            db.save_user_email(str(interaction.user.id), email)
+            await interaction.followup.send(f"Your Plex account has been linked to your Discord account.", ephemeral=True)
+        except Exception as e:
+            err = str(e)
+            if "401" in err or "Unauthorized" in err.lower():
+                await interaction.followup.send("Invalid credentials. Please check your Plex username/email and password.", ephemeral=True)
+            else:
+                await interaction.followup.send("Could not reach the Plex server. Please try again later.", ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        print(error)
+        await interaction.followup.send("Something went wrong. Please try again later.", ephemeral=True)
+
+
 class app(commands.Cog):
     # App command groups
     plex_commands = app_commands.Group(name="plex", description="Membarr Plex commands")
     jellyfin_commands = app_commands.Group(name="jellyfin", description="Membarr Jellyfin commands")
     membarr_commands = app_commands.Group(name="membarr", description="Membarr general commands")
+    emby_commands = app_commands.Group(name="emby", description="Membarr Emby commands")
+    register_commands = app_commands.Group(name="register", description="Link your media server account to Discord")
 
     def __init__(self, bot):
         self.bot = bot
@@ -241,7 +359,7 @@ class app(commands.Cog):
         if jelly.verify_username(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username):
             await embederror(response, f'Could not find account with username {username}.')
             return
-        
+
         if jelly.remove_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username):
             await embedinfo(response, f'Successfully removed user {username} from Jellyfin.')
             return True
@@ -249,9 +367,64 @@ class app(commands.Cog):
             await embederror(response, f'There was an error removing this user from Jellyfin. Check logs for more info.')
             return False
 
+    async def getembyusername(self, after):
+        username = None
+        await embedinfo(after, "Welcome To Emby! Please reply with your desired username.")
+        await embedinfo(after, "If you do not respond within 24 hours, the request will be cancelled.")
+        while username is None:
+            def check(m):
+                return m.author == after and not m.guild
+            try:
+                username = await self.bot.wait_for('message', timeout=86400, check=check)
+                if embyhelper.verify_username(EMBY_SERVER_URL, EMBY_API_KEY, str(username.content)):
+                    return str(username.content)
+                else:
+                    username = None
+                    await embederror(after, "This username is already taken. Please choose another.")
+                    continue
+            except asyncio.TimeoutError:
+                await embederror(after, "Timed out. Please contact the server admin directly.")
+                return None
+            except Exception as e:
+                await embederror(after, "Something went wrong. Please try again with another username.")
+                print(e)
+                username = None
+
+    async def getpassword(self, after, server_name: str):
+        await embedinfo(after, f"Please reply with the password you'd like to use for {server_name}.")
+        def check(m):
+            return m.author == after and not m.guild
+        try:
+            msg = await self.bot.wait_for('message', timeout=86400, check=check)
+            return str(msg.content)
+        except asyncio.TimeoutError:
+            await embederror(after, "Timed out. Please contact the server admin directly.")
+            return None
+
+    async def addtoemby(self, username, password, response):
+        if not embyhelper.verify_username(EMBY_SERVER_URL, EMBY_API_KEY, username):
+            await embederror(response, f'An account with username {username} already exists.')
+            return False
+        if embyhelper.add_user(EMBY_SERVER_URL, EMBY_API_KEY, username, password, emby_libs):
+            return True
+        else:
+            await embederror(response, 'There was an error adding this user to Emby. Check logs for more info.')
+            return False
+
+    async def removefromemby(self, username, response):
+        if embyhelper.verify_username(EMBY_SERVER_URL, EMBY_API_KEY, username):
+            await embederror(response, f'Could not find account with username {username}.')
+            return
+        if embyhelper.remove_user(EMBY_SERVER_URL, EMBY_API_KEY, username):
+            await embedinfo(response, f'Successfully removed user {username} from Emby.')
+            return True
+        else:
+            await embederror(response, f'There was an error removing this user from Emby. Check logs for more info.')
+            return False
+
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
-        if plex_roles is None and jellyfin_roles is None:
+        if plex_roles is None and jellyfin_roles is None and emby_roles is None:
             return
         roles_in_guild = after.guild.roles
         role = None
@@ -315,13 +488,13 @@ class app(commands.Cog):
                         username = await self.getusername(after)
                         print("Username retrieved from user")
                         if username is not None:
-                            await embedinfo(after, "Got it we will be creating your Jellyfin account shortly!")
-                            password = jelly.generate_password(16)
+                            password = await self.getpassword(after, "Jellyfin")
+                        if username is not None and password is not None:
+                            await embedinfo(after, "Got it, we will be creating your Jellyfin account shortly!")
                             if jelly.add_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username, password, jellyfin_libs):
                                 db.save_user_jellyfin(str(after.id), username)
                                 await asyncio.sleep(5)
-                                await embedcustom(after, "You have been added to Jellyfin!", {'Username': username, 'Password': f"||{password}||"})
-                                await embedinfo(after, f"Go to {JELLYFIN_EXTERNAL_URL} to log in!")
+                                await embedinfo(after, f"You have been added to Jellyfin! Go to {JELLYFIN_EXTERNAL_URL} to log in.")
                             else:
                                 await embedinfo(after, 'There was an error adding this user to Jellyfin. Message Server Admin.')
                         jellyfin_processed = True
@@ -349,19 +522,71 @@ class app(commands.Cog):
                 if jellyfin_processed:
                     break
 
+        role = None
+        # Check Emby roles
+        if emby_configured and USE_EMBY:
+            emby_processed = False
+            for role_for_app in emby_roles:
+                for role_in_guild in roles_in_guild:
+                    if role_in_guild.name == role_for_app:
+                        role = role_in_guild
+
+                    # Emby role was added
+                    if role is not None and (role in after.roles and role not in before.roles):
+                        print("Emby role added")
+                        username = await self.getembyusername(after)
+                        print("Emby username retrieved from user")
+                        if username is not None:
+                            password = await self.getpassword(after, "Emby")
+                        if username is not None and password is not None:
+                            await embedinfo(after, "Got it, we will be creating your Emby account shortly!")
+                            if embyhelper.add_user(EMBY_SERVER_URL, EMBY_API_KEY, username, password, emby_libs):
+                                db.save_user_emby(str(after.id), username)
+                                await asyncio.sleep(5)
+                                await embedinfo(after, f"You have been added to Emby! Go to {EMBY_EXTERNAL_URL} to log in.")
+                            else:
+                                await embedinfo(after, 'There was an error adding this user to Emby. Message Server Admin.')
+                        emby_processed = True
+                        break
+
+                    # Emby role was removed
+                    elif role is not None and (role not in after.roles and role in before.roles):
+                        print("Emby role removed")
+                        try:
+                            user_id = after.id
+                            username = db.get_emby_username(user_id)
+                            embyhelper.remove_user(EMBY_SERVER_URL, EMBY_API_KEY, username)
+                            deleted = db.remove_emby(user_id)
+                            if deleted:
+                                print("Removed Emby from {}".format(after.name))
+                            else:
+                                print("Cannot remove Emby from this user")
+                            await embedinfo(after, "You have been removed from Emby")
+                        except Exception as e:
+                            print(e)
+                            print("{} Cannot remove this user from Emby.".format(username))
+                        emby_processed = True
+                        break
+                if emby_processed:
+                    break
+
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         if USE_PLEX and plex_configured:
             email = db.get_useremail(member.id)
-            plexhelper.plexremove(plex,email)
-        
+            plexhelper.plexremove(plex, email)
+
         if USE_JELLYFIN and jellyfin_configured:
             jellyfin_username = db.get_jellyfin_username(member.id)
             jelly.remove_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, jellyfin_username)
-            
+
+        if USE_EMBY and emby_configured:
+            emby_username = db.get_emby_username(member.id)
+            embyhelper.remove_user(EMBY_SERVER_URL, EMBY_API_KEY, emby_username)
+
         deleted = db.delete_user(member.id)
         if deleted:
-            print("Removed {} from db because user left discord server.".format(email))
+            print("Removed {} from db because user left discord server.".format(member.name))
 
     @app_commands.checks.has_permissions(administrator=True)
     @plex_commands.command(name="invite", description="Invite a user to Plex")
@@ -384,7 +609,19 @@ class app(commands.Cog):
     @jellyfin_commands.command(name="remove", description="Remove a user from Jellyfin")
     async def jellyfinremove(self, interaction: discord.Interaction, username: str):
         await self.removefromjellyfin(username, interaction.response)
-    
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @emby_commands.command(name="invite", description="Invite a user to Emby")
+    async def embyinvite(self, interaction: discord.Interaction, username: str):
+        password = embyhelper.generate_password(16)
+        if await self.addtoemby(username, password, interaction.response):
+            await embedcustom(interaction.response, "Emby user created!", {'Username': username, 'Password': f"||{password}||"})
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @emby_commands.command(name="remove", description="Remove a user from Emby")
+    async def embyremove(self, interaction: discord.Interaction, username: str):
+        await self.removefromemby(username, interaction.response)
+
     @app_commands.checks.has_permissions(administrator=True)
     @membarr_commands.command(name="dbadd", description="Add a user to the Membarr database")
     async def dbadd(self, interaction: discord.Interaction, member: discord.Member, email: str = "", jellyfin_username: str = ""):
@@ -467,6 +704,28 @@ class app(commands.Cog):
                 await embederror(interaction.response,"Cannot remove this user from db.")
         except Exception as e:
             print(e)
+
+    @register_commands.command(name="jellyfin", description="Link your existing Jellyfin account to Discord")
+    async def register_jellyfin(self, interaction: discord.Interaction):
+        if not USE_JELLYFIN or not jellyfin_configured:
+            await interaction.response.send_message("Jellyfin is not enabled on this server.", ephemeral=True)
+            return
+        await interaction.response.send_modal(JellyfinRegisterModal(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY))
+
+    @register_commands.command(name="plex", description="Link your existing Plex account to Discord")
+    async def register_plex(self, interaction: discord.Interaction):
+        if not USE_PLEX or not plex_configured:
+            await interaction.response.send_message("Plex is not enabled on this server.", ephemeral=True)
+            return
+        await interaction.response.send_modal(PlexRegisterModal())
+
+    @register_commands.command(name="emby", description="Link your existing Emby account to Discord")
+    async def register_emby(self, interaction: discord.Interaction):
+        if not USE_EMBY or not emby_configured:
+            await interaction.response.send_message("Emby is not enabled on this server.", ephemeral=True)
+            return
+        await interaction.response.send_modal(EmbyRegisterModal(EMBY_SERVER_URL, EMBY_API_KEY))
+
 
 async def setup(bot):
     await bot.add_cog(app(bot))

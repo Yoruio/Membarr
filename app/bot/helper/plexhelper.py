@@ -43,6 +43,10 @@ def plexremoveinvite(plex, plexname):
         print(e)
         return False        
 '''
+def authenticate_user(username: str, password: str) -> str:
+    account = MyPlexAccount(username, password)
+    return account.email
+
 def verifyemail(addressToVerify):
     regex = "(^[a-zA-Z0-9'_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)"
     match = re.match(regex, addressToVerify.lower())
