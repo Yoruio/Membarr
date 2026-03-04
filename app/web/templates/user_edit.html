@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Edit User — Membarr{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <a href="/users" class="btn btn-outline-secondary btn-sm me-3">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h4 class="mb-0 fw-semibold">
+    <i class="bi bi-person-gear me-2 text-primary"></i>Edit User
+    <code class="fs-6 ms-2 text-info">{{ user.discord_id }}</code>
+  </h4>
+</div>
+
+<form method="post" action="/users/{{ user.discord_id }}/edit">
+
+  <div class="card mb-4">
+    <div class="card-header fw-semibold"><i class="bi bi-discord me-2"></i>Discord</div>
+    <div class="card-body row g-3">
+      <div class="col-md-6">
+        <label class="form-label text-secondary small">Discord ID</label>
+        <input type="text" name="new_discord_id" class="form-control font-monospace"
+               value="{{ user.discord_id }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label text-secondary small">Plex Email</label>
+        <input type="email" name="email" class="form-control"
+               value="{{ user.email }}" placeholder="Leave blank if not a Plex user">
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-server me-2"></i>Server Accounts</span>
+      <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow()">
+        <i class="bi bi-plus-lg me-1"></i>Add Account
+      </button>
+    </div>
+    <div class="card-body p-0">
+      <table class="table mb-0" id="accountsTable">
+        <thead class="table-dark">
+          <tr>
+            <th style="width:20%">Type</th>
+            <th style="width:30%">Server Name</th>
+            <th>Username</th>
+            <th style="width:3rem"></th>
+          </tr>
+        </thead>
+        <tbody id="accountsBody">
+          {% for acc in user.accounts %}
+          <tr>
+            <td>
+              <select name="account_type[]" class="form-select form-select-sm"
+                      onchange="updateNames(this)">
+                <option value="jellyfin" {% if acc.server_type == 'jellyfin' %}selected{% endif %}>Jellyfin</option>
+                <option value="emby" {% if acc.server_type == 'emby' %}selected{% endif %}>Emby</option>
+              </select>
+            </td>
+            <td>
+              <select name="account_name[]" class="form-select form-select-sm">
+                {% if acc.server_type == 'jellyfin' %}
+                  {% for n in jellyfin_names %}
+                  <option value="{{ n }}" {% if n == acc.server_name %}selected{% endif %}>{{ n }}</option>
+                  {% endfor %}
+                {% else %}
+                  {% for n in emby_names %}
+                  <option value="{{ n }}" {% if n == acc.server_name %}selected{% endif %}>{{ n }}</option>
+                  {% endfor %}
+                {% endif %}
+              </select>
+            </td>
+            <td>
+              <input type="text" name="account_username[]" class="form-control form-control-sm"
+                     value="{{ acc.username }}">
+            </td>
+            <td class="text-end">
+              <button type="button" class="btn btn-outline-danger btn-sm btn-icon"
+                      onclick="removeRow(this)">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if not user.accounts %}
+      <div class="text-center text-secondary py-4 small" id="emptyNotice">
+        No server accounts. Click "Add Account" to add one.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-floppy me-1"></i>Save Changes
+    </button>
+    <a href="/users" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+
+{# Template row cloned by JS — hidden #}
+<template id="rowTemplate">
+  <tr>
+    <td>
+      <select name="account_type[]" class="form-select form-select-sm"
+              onchange="updateNames(this)">
+        <option value="jellyfin">Jellyfin</option>
+        <option value="emby">Emby</option>
+      </select>
+    </td>
+    <td>
+      <select name="account_name[]" class="form-select form-select-sm">
+        {% for n in jellyfin_names %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+      </select>
+    </td>
+    <td>
+      <input type="text" name="account_username[]" class="form-control form-control-sm" placeholder="username">
+    </td>
+    <td class="text-end">
+      <button type="button" class="btn btn-outline-danger btn-sm btn-icon"
+              onclick="removeRow(this)">
+        <i class="bi bi-trash"></i>
+      </button>
+    </td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const jellyfinNames = {{ jellyfin_names | tojson }};
+const embyNames = {{ emby_names | tojson }};
+
+function updateNames(typeSelect) {
+  const row = typeSelect.closest('tr');
+  const nameSelect = row.querySelector('select[name="account_name[]"]');
+  const type = typeSelect.value;
+  const names = type === 'jellyfin' ? jellyfinNames : embyNames;
+  nameSelect.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join('');
+}
+
+function addRow() {
+  const tmpl = document.getElementById('rowTemplate');
+  const clone = tmpl.content.cloneNode(true);
+  document.getElementById('accountsBody').appendChild(clone);
+  const notice = document.getElementById('emptyNotice');
+  if (notice) notice.remove();
+}
+
+function removeRow(btn) {
+  btn.closest('tr').remove();
+}
+</script>
+{% endblock %}

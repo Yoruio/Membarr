@@ -646,4 +646,18 @@ bot.tree.add_command(jellyfin_commands)
 bot.tree.add_command(emby_commands)
 bot.tree.add_command(jellyseerr_commands)
 
+
+@bot.tree.interaction_check
+async def channel_check(interaction: discord.Interaction) -> bool:
+    channels = confighelper.ALLOWED_CHANNELS
+    if not channels:
+        return True
+    if str(interaction.channel_id) in channels:
+        return True
+    await interaction.response.send_message(
+        "Commands are not enabled in this channel.", ephemeral=True
+    )
+    return False
+
+
 bot.run(Discord_bot_token)

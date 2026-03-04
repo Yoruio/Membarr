@@ -70,6 +70,11 @@
             <i class="bi bi-collection-play me-1"></i>Requests
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link {% if '/settings' in request.url.path %}active text-white{% endif %}" href="/settings">
+            <i class="bi bi-gear me-1"></i>Settings
+          </a>
+        </li>
       </ul>
       <form method="post" action="/logout" class="d-flex">
         <button class="btn btn-outline-secondary btn-sm" type="submit">

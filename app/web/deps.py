@@ -10,6 +10,10 @@ import configparser
 import sqlite3
 from typing import Optional, List, Tuple
 
+from dotenv import dotenv_values, set_key
+
+BOT_ENV_PATH = 'bot.env'
+
 CONFIG_PATH = 'app/config/config.ini'
 DB_PATH = 'app/config/app.db'
 BOT_SECTION = 'bot_envs'
@@ -134,6 +138,61 @@ def db_get_stats(conn: sqlite3.Connection) -> dict:
         'jellyfin_accounts': jf_accounts,
         'emby_accounts': emby_accounts,
     }
+
+
+# ── Bot env (bot.env file) ─────────────────────────────────────────────────────
+
+def read_bot_env() -> dict:
+    """Return a dict of all keys in bot.env."""
+    return dict(dotenv_values(BOT_ENV_PATH))
+
+
+def write_bot_env_key(key: str, value: str):
+    """Write a single key/value pair to bot.env."""
+    set_key(BOT_ENV_PATH, key, value)
+
+
+# ── User edit DB helpers ───────────────────────────────────────────────────────
+
+def db_get_user(conn: sqlite3.Connection, discord_id: str) -> Optional[dict]:
+    """Return user dict with id, discord_id, email, and accounts list."""
+    cur = conn.cursor()
+    cur.execute("SELECT id, discord_id, email FROM clients WHERE discord_id=?", (discord_id,))
+    row = cur.fetchone()
+    if row is None:
+        return None
+    cur2 = conn.cursor()
+    cur2.execute(
+        "SELECT server_type, server_name, username FROM server_accounts WHERE discord_id=? ORDER BY server_type, server_name",
+        (discord_id,)
+    )
+    accounts = [{'server_type': a[0], 'server_name': a[1], 'username': a[2]} for a in cur2.fetchall()]
+    return {'id': row['id'], 'discord_id': row['discord_id'], 'email': row['email'] or '', 'accounts': accounts}
+
+
+def db_update_user(conn: sqlite3.Connection, old_discord_id: str, new_discord_id: str, email: str):
+    """Update discord_id and email in clients; cascade discord_id in server_accounts."""
+    conn.execute(
+        "UPDATE clients SET discord_id=?, email=? WHERE discord_id=?",
+        (new_discord_id, email, old_discord_id)
+    )
+    if new_discord_id != old_discord_id:
+        conn.execute(
+            "UPDATE server_accounts SET discord_id=? WHERE discord_id=?",
+            (new_discord_id, old_discord_id)
+        )
+    conn.commit()
+
+
+def db_replace_server_accounts(conn: sqlite3.Connection, discord_id: str, accounts: list):
+    """Replace all server accounts for a user with the provided list."""
+    conn.execute("DELETE FROM server_accounts WHERE discord_id=?", (discord_id,))
+    for acc in accounts:
+        conn.execute(
+            "INSERT OR REPLACE INTO server_accounts (discord_id, server_type, server_name, username) VALUES (?,?,?,?)",
+            (discord_id, acc['server_type'], acc['server_name'], acc['username'])
+        )
+    conn.commit()
 
 
 # ── Flash messages ────────────────────────────────────────────────────────────

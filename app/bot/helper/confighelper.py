@@ -161,6 +161,11 @@ emby_libs = emby_servers[0].libs if emby_servers else ["all"]
 
 # ── Jellyseerr ────────────────────────────────────────────────────────────────
 
+ALLOWED_CHANNELS = [
+    c.strip() for c in
+    config.get(BOT_SECTION, 'allowed_channels', fallback='').split(',') if c.strip()
+]
+
 JELLYSEERR_URL = ""
 JELLYSEERR_API_KEY = ""
 JELLYSEERR_JELLYFIN_SERVER = ""  # which Jellyfin server name to use for user matching

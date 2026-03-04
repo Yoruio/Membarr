@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Settings — Membarr{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <h4 class="mb-0 fw-semibold"><i class="bi bi-gear me-2 text-primary"></i>Settings</h4>
+</div>
+
+<form method="post" action="/settings">
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">
+      <i class="bi bi-key me-2"></i>Bot Token
+    </div>
+    <div class="card-body">
+      <p class="text-secondary small mb-3">
+        The Discord bot token stored in <code>bot.env</code>.
+        A restart of the bot process is required for a new token to take effect.
+      </p>
+      <div class="input-group">
+        <input type="password" id="tokenInput" name="token"
+               class="form-control font-monospace"
+               value="{{ token }}"
+               placeholder="paste new token here (leave blank to keep current)">
+        <button class="btn btn-outline-secondary" type="button" id="toggleToken"
+                onclick="toggleVisibility('tokenInput', 'toggleToken')">
+          <i class="bi bi-eye"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">
+      <i class="bi bi-hash me-2"></i>Channel Restrictions
+    </div>
+    <div class="card-body">
+      <p class="text-secondary small mb-3">
+        Comma-separated Discord channel IDs where bot slash commands are allowed.
+        Leave blank to allow commands in <strong>all channels</strong>.
+      </p>
+      <input type="text" name="allowed_channels" class="form-control font-monospace"
+             value="{{ allowed_channels }}"
+             placeholder="e.g. 123456789012345678, 987654321098765432">
+      <div class="form-text text-secondary mt-1">
+        Right-click a channel in Discord → Copy Channel ID (Developer Mode must be on).
+        Changes take effect immediately without a bot restart.
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-floppy me-1"></i>Save Settings
+    </button>
+    <a href="/" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleVisibility(inputId, btnId) {
+  const input = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+  } else {
+    input.type = 'password';
+    btn.innerHTML = '<i class="bi bi-eye"></i>';
+  }
+}
+</script>
+{% endblock %}

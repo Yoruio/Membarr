@@ -54,6 +54,9 @@
             {% endif %}
           </td>
           <td class="text-end">
+            <a href="/users/{{ discord_id }}/edit" class="btn btn-outline-secondary btn-sm btn-icon me-1">
+              <i class="bi bi-pencil"></i>
+            </a>
             <button class="btn btn-outline-danger btn-sm btn-icon"
                     onclick="confirmDelete('{{ discord_id }}')">
               <i class="bi bi-trash"></i>

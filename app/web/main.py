@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.web.routers import auth, dashboard, servers, users, requests as reqs
+from app.web.routers import auth, dashboard, servers, users, requests as reqs, settings
 
 # Load same bot.env as the Discord bot so WEB_PASSWORD / WEB_SECRET_KEY work
 if os.path.exists('bot.env'):
@@ -52,3 +52,4 @@ app.include_router(dashboard.router)
 app.include_router(servers.router)
 app.include_router(users.router)
 app.include_router(reqs.router)
+app.include_router(settings.router)
