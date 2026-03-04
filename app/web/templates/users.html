@@ -7,7 +7,7 @@
     <span class="badge bg-secondary ms-2 fs-6 fw-normal">{{ users | length }}</span>
   </h4>
   <input type="search" id="userSearch" class="form-control form-control-sm w-auto"
-         placeholder="Search Discord ID or username…" oninput="filterUsers(this.value)">
+         placeholder="Search Discord ID…" oninput="filterUsers(this.value)">
 </div>
 
 {% if users %}
@@ -29,7 +29,9 @@
         {% set discord_id = u[1] %}
         {% set plex_email = u[2] %}
         {% set accounts = u[3] %}
-        <tr class="user-row" data-search="{{ discord_id }}">
+
+        {# ── View row ── #}
+        <tr class="user-row" data-search="{{ discord_id }}" id="view-{{ discord_id }}">
           <td class="text-secondary small">{{ idx }}</td>
           <td>
             <code class="text-info">{{ discord_id }}</code>
@@ -45,8 +47,7 @@
             {% if accounts %}
               {% for acc in accounts %}
               <span class="badge bg-secondary me-1 mb-1 fw-normal">
-                <i class="bi bi-{% if acc[0] == 'jellyfin' %}server{% else %}server{% endif %} me-1"></i>
-                {{ acc[1] }}: {{ acc[2] }}
+                <i class="bi bi-server me-1"></i>{{ acc[1] }}: {{ acc[2] }}
               </span>
               {% endfor %}
             {% else %}
@@ -54,15 +55,98 @@
             {% endif %}
           </td>
           <td class="text-end">
-            <a href="/users/{{ discord_id }}/edit" class="btn btn-outline-secondary btn-sm btn-icon me-1">
+            <button class="btn btn-outline-secondary btn-sm btn-icon me-1"
+                    onclick="toggleEdit('{{ discord_id }}')">
               <i class="bi bi-pencil"></i>
-            </a>
+            </button>
             <button class="btn btn-outline-danger btn-sm btn-icon"
                     onclick="confirmDelete('{{ discord_id }}')">
               <i class="bi bi-trash"></i>
             </button>
           </td>
         </tr>
+
+        {# ── Inline edit row (hidden by default) ── #}
+        <tr class="edit-row d-none" id="edit-{{ discord_id }}">
+          <td colspan="5" class="p-3" style="background:#1c2128; border-top:2px solid #58a6ff;">
+            <form onsubmit="saveUser(event, '{{ discord_id }}')">
+              <div class="row g-2 mb-3">
+                <div class="col-md-5">
+                  <label class="form-label text-secondary small mb-1">Discord ID</label>
+                  <input type="text" name="new_discord_id"
+                         class="form-control form-control-sm font-monospace"
+                         value="{{ discord_id }}" required>
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label text-secondary small mb-1">Plex Email</label>
+                  <input type="email" name="email"
+                         class="form-control form-control-sm"
+                         value="{{ plex_email or '' }}"
+                         placeholder="Leave blank if not a Plex user">
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="text-secondary small">Server Accounts</span>
+                  <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
+                          onclick="addAccountRow(this)">
+                    <i class="bi bi-plus-lg"></i> Add
+                  </button>
+                </div>
+                <table class="table table-sm mb-0 account-table" style="font-size:.85rem">
+                  <tbody>
+                    {% for acc in accounts %}
+                    <tr>
+                      <td style="width:22%">
+                        <select name="account_type" class="form-select form-select-sm"
+                                onchange="updateNamesSelect(this)">
+                          <option value="jellyfin" {% if acc[0]=='jellyfin' %}selected{% endif %}>Jellyfin</option>
+                          <option value="emby" {% if acc[0]=='emby' %}selected{% endif %}>Emby</option>
+                        </select>
+                      </td>
+                      <td style="width:30%">
+                        <select name="account_name" class="form-select form-select-sm">
+                          {% if acc[0] == 'jellyfin' %}
+                            {% for n in jellyfin_names %}
+                            <option value="{{ n }}" {% if n==acc[1] %}selected{% endif %}>{{ n }}</option>
+                            {% endfor %}
+                          {% else %}
+                            {% for n in emby_names %}
+                            <option value="{{ n }}" {% if n==acc[1] %}selected{% endif %}>{{ n }}</option>
+                            {% endfor %}
+                          {% endif %}
+                        </select>
+                      </td>
+                      <td>
+                        <input type="text" name="account_username"
+                               class="form-control form-control-sm" value="{{ acc[2] }}">
+                      </td>
+                      <td style="width:2.5rem" class="text-end">
+                        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1"
+                                onclick="this.closest('tr').remove()">
+                          <i class="bi bi-x"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-floppy me-1"></i>Save
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        onclick="toggleEdit('{{ discord_id }}')">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </td>
+        </tr>
+
         {% endfor %}
       </tbody>
     </table>
@@ -77,12 +161,82 @@
 </div>
 {% endif %}
 
-<!-- Hidden delete forms — one per user, populated by JS -->
 <div id="deleteForms"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+const jellyfinNames = {{ jellyfin_names | tojson }};
+const embyNames = {{ emby_names | tojson }};
+
+function toggleEdit(discordId) {
+  const editRow = document.getElementById('edit-' + discordId);
+  const isHidden = editRow.classList.contains('d-none');
+  // Close any other open edit rows first
+  document.querySelectorAll('.edit-row:not(.d-none)').forEach(r => r.classList.add('d-none'));
+  if (isHidden) {
+    editRow.classList.remove('d-none');
+    editRow.querySelector('input[name="new_discord_id"]').focus();
+  }
+}
+
+function addAccountRow(btn) {
+  const tbody = btn.closest('.mb-3').querySelector('.account-table tbody');
+  const tr = document.createElement('tr');
+  const jfOptions = jellyfinNames.map(n => `<option value="${n}">${n}</option>`).join('');
+  tr.innerHTML = `
+    <td style="width:22%">
+      <select name="account_type" class="form-select form-select-sm" onchange="updateNamesSelect(this)">
+        <option value="jellyfin">Jellyfin</option>
+        <option value="emby">Emby</option>
+      </select>
+    </td>
+    <td style="width:30%">
+      <select name="account_name" class="form-select form-select-sm">${jfOptions}</select>
+    </td>
+    <td>
+      <input type="text" name="account_username" class="form-control form-control-sm" placeholder="username">
+    </td>
+    <td style="width:2.5rem" class="text-end">
+      <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1"
+              onclick="this.closest('tr').remove()">
+        <i class="bi bi-x"></i>
+      </button>
+    </td>`;
+  tbody.appendChild(tr);
+}
+
+function updateNamesSelect(typeSelect) {
+  const nameSelect = typeSelect.closest('tr').querySelector('select[name="account_name"]');
+  const names = typeSelect.value === 'jellyfin' ? jellyfinNames : embyNames;
+  nameSelect.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join('');
+}
+
+async function saveUser(event, discordId) {
+  event.preventDefault();
+  const form = event.target;
+  const saveBtn = form.querySelector('button[type="submit"]');
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+  try {
+    const resp = await fetch('/users/' + discordId + '/edit', {
+      method: 'POST',
+      body: new FormData(form),
+    });
+    if (resp.ok) {
+      window.location.reload();
+    } else {
+      alert('Save failed (HTTP ' + resp.status + '). Please try again.');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bi bi-floppy me-1"></i>Save';
+    }
+  } catch (e) {
+    alert('Save failed: ' + e.message);
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bi bi-floppy me-1"></i>Save';
+  }
+}
+
 function confirmDelete(discordId) {
   if (!confirm('Remove Discord user ' + discordId + ' from the database?\nThis will also remove all their linked server accounts.')) return;
   const form = document.createElement('form');
@@ -95,8 +249,10 @@ function confirmDelete(discordId) {
 function filterUsers(query) {
   const q = query.toLowerCase();
   document.querySelectorAll('.user-row').forEach(row => {
-    const text = row.dataset.search + ' ' + row.innerText.toLowerCase();
-    row.style.display = text.includes(q) ? '' : 'none';
+    const show = (row.dataset.search + ' ' + row.innerText).toLowerCase().includes(q);
+    row.style.display = show ? '' : 'none';
+    const editRow = document.getElementById('edit-' + row.dataset.search);
+    if (editRow) editRow.style.display = show ? '' : 'none';
   });
 }
 </script>

@@ -19,10 +19,13 @@ async def users_list(request: Request):
     conn = get_db()
     users = db_read_all_users(conn)
     conn.close()
+    cfg = read_config()
     return templates.TemplateResponse('users.html', {
         'request': request,
         'flash': pop_flash(request),
         'users': users,
+        'jellyfin_names': list_server_names(cfg, 'jellyfin'),
+        'emby_names': list_server_names(cfg, 'emby'),
     })
 
 

@@ -51,14 +51,14 @@
           {% for acc in user.accounts %}
           <tr>
             <td>
-              <select name="account_type[]" class="form-select form-select-sm"
+              <select name="account_type" class="form-select form-select-sm"
                       onchange="updateNames(this)">
                 <option value="jellyfin" {% if acc.server_type == 'jellyfin' %}selected{% endif %}>Jellyfin</option>
                 <option value="emby" {% if acc.server_type == 'emby' %}selected{% endif %}>Emby</option>
               </select>
             </td>
             <td>
-              <select name="account_name[]" class="form-select form-select-sm">
+              <select name="account_name" class="form-select form-select-sm">
                 {% if acc.server_type == 'jellyfin' %}
                   {% for n in jellyfin_names %}
                   <option value="{{ n }}" {% if n == acc.server_name %}selected{% endif %}>{{ n }}</option>
@@ -71,7 +71,7 @@
               </select>
             </td>
             <td>
-              <input type="text" name="account_username[]" class="form-control form-control-sm"
+              <input type="text" name="account_username" class="form-control form-control-sm"
                      value="{{ acc.username }}">
             </td>
             <td class="text-end">
@@ -104,19 +104,19 @@
 <template id="rowTemplate">
   <tr>
     <td>
-      <select name="account_type[]" class="form-select form-select-sm"
+      <select name="account_type" class="form-select form-select-sm"
               onchange="updateNames(this)">
         <option value="jellyfin">Jellyfin</option>
         <option value="emby">Emby</option>
       </select>
     </td>
     <td>
-      <select name="account_name[]" class="form-select form-select-sm">
+      <select name="account_name" class="form-select form-select-sm">
         {% for n in jellyfin_names %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
       </select>
     </td>
     <td>
-      <input type="text" name="account_username[]" class="form-control form-control-sm" placeholder="username">
+      <input type="text" name="account_username" class="form-control form-control-sm" placeholder="username">
     </td>
     <td class="text-end">
       <button type="button" class="btn btn-outline-danger btn-sm btn-icon"
@@ -135,7 +135,7 @@ const embyNames = {{ emby_names | tojson }};
 
 function updateNames(typeSelect) {
   const row = typeSelect.closest('tr');
-  const nameSelect = row.querySelector('select[name="account_name[]"]');
+  const nameSelect = row.querySelector('select[name="account_name"]');
   const type = typeSelect.value;
   const names = type === 'jellyfin' ? jellyfinNames : embyNames;
   nameSelect.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join('');
