@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Add' if is_new else 'Edit' }} {{ server_type_label }} — Membarr{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="/servers" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+  <h4 class="mb-0 fw-semibold">
+    <i class="bi bi-server me-2 text-{% if server_type == 'jellyfin' %}info{% else %}warning{% endif %}"></i>
+    {{ 'Add' if is_new else 'Edit' }} {{ server_type_label }}{% if not is_new %}: {{ server.name }}{% endif %}
+  </h4>
+</div>
+
+<div class="card" style="max-width:720px;">
+  <div class="card-body">
+    <form method="post" action="/servers/{{ server_type }}/{{ 'new' if is_new else server.name }}">
+
+      {% if is_new %}
+      <div class="mb-3">
+        <label class="form-label fw-medium">Server Name <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" name="server_name"
+               value="{{ server.name }}" placeholder="e.g. MainJellyfin" required autofocus>
+        <div class="form-text">Used as the identifier in config. No spaces — use CamelCase or hyphens.</div>
+      </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <label class="form-label fw-medium">Server URL <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" name="url"
+               value="{{ server.url }}" placeholder="http://10.10.20.100:8096"
+               {% if not is_new %}autofocus{% endif %}>
+        <div class="form-text">Internal URL used by the bot to make API calls.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-medium">API Key <span class="text-danger">*</span></label>
+        <div class="input-group">
+          <input type="password" class="form-control" name="api_key" id="apiKey"
+                 value="{{ server.api_key }}" placeholder="Paste API key from server dashboard">
+          <button class="btn btn-outline-secondary" type="button" onclick="toggleKey()">
+            <i class="bi bi-eye" id="eyeIcon"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-medium">External URL
+          <span class="text-secondary fw-normal small">(optional)</span>
+        </label>
+        <input type="text" class="form-control" name="external_url"
+               value="{{ server.external_url }}" placeholder="https://jellyfin.yourdomain.com">
+        <div class="form-text">Shown to users in DMs. Falls back to Server URL if blank.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-medium">Auto-invite Roles
+          <span class="text-secondary fw-normal small">(comma-separated Discord role names)</span>
+        </label>
+        <input type="text" class="form-control" name="roles"
+               value="{{ server.roles }}" placeholder="Member, Subscriber">
+        <div class="form-text">Users who receive these Discord roles will be automatically invited.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-medium">Libraries
+          <span class="text-secondary fw-normal small">(comma-separated, or "all")</span>
+        </label>
+        <input type="text" class="form-control" name="libs"
+               value="{{ server.libs }}" placeholder="all">
+      </div>
+
+      <div class="mb-4">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="enabled" id="enabled"
+                 {% if server.enabled %}checked{% endif %}>
+          <label class="form-check-label fw-medium" for="enabled">Enabled</label>
+        </div>
+        <div class="form-text">Disabled servers are ignored for auto-invite/remove events.</div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-save me-1"></i>{{ 'Add Server' if is_new else 'Save Changes' }}
+        </button>
+        <a href="/servers" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleKey() {
+  const input = document.getElementById('apiKey');
+  const icon = document.getElementById('eyeIcon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'bi bi-eye-slash';
+  } else {
+    input.type = 'password';
+    icon.className = 'bi bi-eye';
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Membarr{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <h4 class="mb-0 fw-semibold"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</h4>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100" style="--accent:#58a6ff;">
+      <div class="card-body">
+        <div class="text-secondary small mb-1"><i class="bi bi-people me-1"></i>Total Members</div>
+        <div class="stat-num text-white">{{ stats.total_users }}</div>
+        <div class="text-secondary small">{{ stats.jellyfin_accounts }} Jellyfin · {{ stats.emby_accounts }} Emby</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100" style="--accent:{% if jf_servers|selectattr('enabled')|list %}#3fb950{% else %}#f85149{% endif %};">
+      <div class="card-body">
+        <div class="text-secondary small mb-1"><i class="bi bi-server me-1"></i>Jellyfin Servers</div>
+        <div class="stat-num text-white">{{ jf_servers | length }}</div>
+        <div class="text-secondary small">{{ jf_servers|selectattr('enabled')|list|length }} enabled</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100" style="--accent:{% if emby_servers|selectattr('enabled')|list %}#3fb950{% else %}#f85149{% endif %};">
+      <div class="card-body">
+        <div class="text-secondary small mb-1"><i class="bi bi-server me-1"></i>Emby Servers</div>
+        <div class="stat-num text-white">{{ emby_servers | length }}</div>
+        <div class="text-secondary small">{{ emby_servers|selectattr('enabled')|list|length }} enabled</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100" style="--accent:{% if js_configured %}#d29922{% else %}#6e7681{% endif %};">
+      <div class="card-body">
+        <div class="text-secondary small mb-1"><i class="bi bi-collection-play me-1"></i>Pending Requests</div>
+        <div class="stat-num text-white">{% if js_configured %}{{ pending_count }}{% else %}—{% endif %}</div>
+        <div class="text-secondary small">{% if js_configured %}via Jellyseerr{% else %}not configured{% endif %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Server status -->
+<div class="row g-3">
+  <!-- Jellyfin -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold"><i class="bi bi-server me-2 text-info"></i>Jellyfin</span>
+        <a href="/servers/jellyfin/new" class="btn btn-outline-info btn-sm">
+          <i class="bi bi-plus-lg me-1"></i>Add
+        </a>
+      </div>
+      <div class="card-body p-0">
+        {% if jf_servers %}
+        <ul class="list-group list-group-flush">
+          {% for s in jf_servers %}
+          <li class="list-group-item d-flex justify-content-between align-items-center bg-transparent">
+            <div>
+              <span class="fw-medium">{{ s.name }}</span>
+              <div class="text-secondary small">{{ s.url }}</div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge {% if s.enabled %}badge-enabled{% else %}badge-disabled{% endif %}">
+                {{ 'enabled' if s.enabled else 'disabled' }}
+              </span>
+              <a href="/servers/jellyfin/{{ s.name }}" class="btn btn-outline-secondary btn-icon">
+                <i class="bi bi-pencil"></i>
+              </a>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="p-3 text-secondary small">
+          No Jellyfin servers configured.
+          <a href="/servers/jellyfin/new">Add one →</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Emby -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold"><i class="bi bi-server me-2 text-warning"></i>Emby</span>
+        <a href="/servers/emby/new" class="btn btn-outline-warning btn-sm">
+          <i class="bi bi-plus-lg me-1"></i>Add
+        </a>
+      </div>
+      <div class="card-body p-0">
+        {% if emby_servers %}
+        <ul class="list-group list-group-flush">
+          {% for s in emby_servers %}
+          <li class="list-group-item d-flex justify-content-between align-items-center bg-transparent">
+            <div>
+              <span class="fw-medium">{{ s.name }}</span>
+              <div class="text-secondary small">{{ s.url }}</div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge {% if s.enabled %}badge-enabled{% else %}badge-disabled{% endif %}">
+                {{ 'enabled' if s.enabled else 'disabled' }}
+              </span>
+              <a href="/servers/emby/{{ s.name }}" class="btn btn-outline-secondary btn-icon">
+                <i class="bi bi-pencil"></i>
+              </a>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="p-3 text-secondary small">
+          No Emby servers configured.
+          <a href="/servers/emby/new">Add one →</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Plex + Jellyseerr status row -->
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header py-2">
+        <span class="fw-semibold"><i class="bi bi-tv me-2 text-danger"></i>Plex</span>
+      </div>
+      <div class="card-body py-2">
+        <span class="badge {% if plex_enabled %}badge-enabled{% else %}badge-disabled{% endif %} me-2">
+          {{ 'enabled' if plex_enabled else 'disabled' }}
+        </span>
+        <a href="/servers" class="btn btn-outline-secondary btn-sm">Configure</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header py-2">
+        <span class="fw-semibold"><i class="bi bi-collection-play me-2 text-success"></i>Jellyseerr</span>
+      </div>
+      <div class="card-body py-2">
+        <span class="badge {% if js_configured %}badge-enabled{% else %}badge-disabled{% endif %} me-2">
+          {{ 'configured' if js_configured else 'not configured' }}
+        </span>
+        {% if js_configured %}
+        <a href="/requests" class="btn btn-outline-secondary btn-sm">View requests</a>
+        {% else %}
+        <a href="/servers" class="btn btn-outline-secondary btn-sm">Configure</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

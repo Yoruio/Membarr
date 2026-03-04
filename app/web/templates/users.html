@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Users — Membarr{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h4 class="mb-0 fw-semibold"><i class="bi bi-people me-2 text-primary"></i>Users
+    <span class="badge bg-secondary ms-2 fs-6 fw-normal">{{ users | length }}</span>
+  </h4>
+  <input type="search" id="userSearch" class="form-control form-control-sm w-auto"
+         placeholder="Search Discord ID or username…" oninput="filterUsers(this.value)">
+</div>
+
+{% if users %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" id="usersTable">
+      <thead>
+        <tr>
+          <th style="width:2rem;">#</th>
+          <th>Discord ID</th>
+          <th>Plex Email</th>
+          <th>Server Accounts</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        {% set idx = loop.index %}
+        {% set discord_id = u[1] %}
+        {% set plex_email = u[2] %}
+        {% set accounts = u[3] %}
+        <tr class="user-row" data-search="{{ discord_id }}">
+          <td class="text-secondary small">{{ idx }}</td>
+          <td>
+            <code class="text-info">{{ discord_id }}</code>
+          </td>
+          <td class="text-secondary small">
+            {% if plex_email %}
+              <i class="bi bi-tv-fill text-danger me-1"></i>{{ plex_email }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if accounts %}
+              {% for acc in accounts %}
+              <span class="badge bg-secondary me-1 mb-1 fw-normal">
+                <i class="bi bi-{% if acc[0] == 'jellyfin' %}server{% else %}server{% endif %} me-1"></i>
+                {{ acc[1] }}: {{ acc[2] }}
+              </span>
+              {% endfor %}
+            {% else %}
+              <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <button class="btn btn-outline-danger btn-sm btn-icon"
+                    onclick="confirmDelete('{{ discord_id }}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body text-center text-secondary py-5">
+    <i class="bi bi-people fs-1 d-block mb-2"></i>
+    No users in the database yet.
+  </div>
+</div>
+{% endif %}
+
+<!-- Hidden delete forms — one per user, populated by JS -->
+<div id="deleteForms"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDelete(discordId) {
+  if (!confirm('Remove Discord user ' + discordId + ' from the database?\nThis will also remove all their linked server accounts.')) return;
+  const form = document.createElement('form');
+  form.method = 'post';
+  form.action = '/users/' + discordId + '/delete';
+  document.getElementById('deleteForms').appendChild(form);
+  form.submit();
+}
+
+function filterUsers(query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('.user-row').forEach(row => {
+    const text = row.dataset.search + ' ' + row.innerText.toLowerCase();
+    row.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

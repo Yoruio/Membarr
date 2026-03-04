@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Requests — Membarr{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h4 class="mb-0 fw-semibold">
+    <i class="bi bi-collection-play me-2 text-primary"></i>Jellyseerr Requests
+  </h4>
+  {% if configured %}
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-secondary small">Filter:</span>
+    <div class="btn-group btn-group-sm">
+      <a href="/requests?filter=pending"
+         class="btn btn-outline-secondary {% if filter_status == 'pending' %}active{% endif %}">Pending</a>
+      <a href="/requests?filter=approved"
+         class="btn btn-outline-secondary {% if filter_status == 'approved' %}active{% endif %}">Approved</a>
+      <a href="/requests?filter=all"
+         class="btn btn-outline-secondary {% if filter_status == 'all' %}active{% endif %}">All</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if not configured %}
+<div class="card">
+  <div class="card-body text-center text-secondary py-5">
+    <i class="bi bi-collection-play fs-1 d-block mb-3"></i>
+    <p class="mb-3">Jellyseerr is not configured.</p>
+    <a href="/servers" class="btn btn-outline-primary">
+      <i class="bi bi-gear me-1"></i>Configure Jellyseerr
+    </a>
+  </div>
+</div>
+
+{% elif not requests %}
+<div class="card">
+  <div class="card-body text-center text-secondary py-5">
+    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+    No {{ filter_status }} requests.
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Type</th>
+          <th>Requested By</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in requests %}
+        {% set media = req.get('media', {}) %}
+        {% set title = media.get('originalTitle') or media.get('title') or media.get('name') or ('ID ' ~ media.get('id', '?')) %}
+        {% set year_raw = media.get('releaseDate') or media.get('firstAirDate') or '' %}
+        {% set year = year_raw[:4] if year_raw else '' %}
+        {% set requester = req.get('requestedBy', {}).get('displayName', 'Unknown') %}
+        {% set status_code = req.get('status', 0) %}
+        <tr>
+          <td class="text-secondary small">#{{ req.get('id') }}</td>
+          <td>
+            <span class="fw-medium">{{ title }}</span>
+            {% if year %}<span class="text-secondary small ms-1">({{ year }})</span>{% endif %}
+          </td>
+          <td>
+            <span class="badge bg-secondary fw-normal">
+              {{ format_media_type(req.get('type', '')) }}
+            </span>
+          </td>
+          <td class="text-secondary small">{{ requester }}</td>
+          <td>
+            {% set status_text = format_status(status_code) %}
+            {% if status_code == 1 %}
+              <span class="badge" style="background:#d29922;">{{ status_text }}</span>
+            {% elif status_code == 2 %}
+              <span class="badge badge-enabled">{{ status_text }}</span>
+            {% elif status_code == 3 %}
+              <span class="badge" style="background:#b91c1c;">{{ status_text }}</span>
+            {% elif status_code == 4 or status_code == 5 %}
+              <span class="badge" style="background:#1d4ed8;">{{ status_text }}</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ status_text }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if status_code == 1 %}
+            <form method="post" action="/requests/{{ req.get('id') }}/approve" class="d-inline">
+              <button type="submit" class="btn btn-outline-success btn-sm me-1"
+                      title="Approve">
+                <i class="bi bi-check-lg"></i>
+              </button>
+            </form>
+            <form method="post" action="/requests/{{ req.get('id') }}/decline" class="d-inline">
+              <button type="submit" class="btn btn-outline-danger btn-sm"
+                      title="Decline"
+                      onclick="return confirm('Decline this request?')">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

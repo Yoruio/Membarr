@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Membarr Admin{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    body { background-color: #0d1117; }
+    .navbar-brand { letter-spacing: .5px; }
+    .nav-link.active { color: #fff !important; font-weight: 500; }
+    .card { border-color: #30363d; background-color: #161b22; }
+    .card-header { border-color: #30363d; background-color: #1c2128; }
+    .table { --bs-table-bg: transparent; }
+    .badge-enabled  { background-color: #1a7f37; }
+    .badge-disabled { background-color: #6e4010; }
+    .stat-card { border-left: 3px solid var(--accent); }
+    .stat-card .stat-num { font-size: 2rem; font-weight: 700; }
+    code { color: #79c0ff; }
+    .form-control, .form-select {
+      background-color: #0d1117;
+      border-color: #30363d;
+      color: #c9d1d9;
+    }
+    .form-control:focus, .form-select:focus {
+      background-color: #0d1117;
+      border-color: #58a6ff;
+      color: #c9d1d9;
+      box-shadow: 0 0 0 0.2rem rgba(88,166,255,.15);
+    }
+    .form-control::placeholder { color: #6e7681; }
+    .table-dark th { background-color: #1c2128; }
+    .btn-icon { padding: .25rem .5rem; }
+    .server-card:hover { border-color: #58a6ff !important; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg border-bottom" style="background-color:#161b22;">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand fw-bold text-white" href="/">
+      <i class="bi bi-play-circle-fill text-primary me-2"></i>Membarr
+      <span class="text-secondary fw-normal fs-6 ms-1">admin</span>
+    </a>
+
+    {% if request.session.get('authenticated') or not web_password %}
+    <button class="navbar-toggler border-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto mb-0">
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path == '/' %}active text-white{% endif %}" href="/">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if '/servers' in request.url.path %}active text-white{% endif %}" href="/servers">
+            <i class="bi bi-server me-1"></i>Servers
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if '/users' in request.url.path %}active text-white{% endif %}" href="/users">
+            <i class="bi bi-people me-1"></i>Users
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if '/requests' in request.url.path %}active text-white{% endif %}" href="/requests">
+            <i class="bi bi-collection-play me-1"></i>Requests
+          </a>
+        </li>
+      </ul>
+      <form method="post" action="/logout" class="d-flex">
+        <button class="btn btn-outline-secondary btn-sm" type="submit">
+          <i class="bi bi-box-arrow-right me-1"></i>Logout
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="container-fluid px-4 py-4">
+
+  {% if not web_password %}
+  <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+    <i class="bi bi-shield-exclamation fs-5 me-2"></i>
+    <div>
+      <strong>No password set.</strong> Set <code>WEB_PASSWORD=yourpassword</code>
+      in <code>bot.env</code> and restart the web server.
+    </div>
+  </div>
+  {% endif %}
+
+  {% if flash %}
+  <div class="alert alert-{{ flash.category }} alert-dismissible fade show" role="alert">
+    <i class="bi bi-{% if flash.category == 'success' %}check-circle{% elif flash.category == 'danger' %}x-circle{% else %}info-circle{% endif %} me-2"></i>
+    {{ flash.message | safe }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
+
+  {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

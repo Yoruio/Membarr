@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Servers — Membarr{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <h4 class="mb-0 fw-semibold"><i class="bi bi-server me-2 text-primary"></i>Servers</h4>
+</div>
+
+<!-- ── Jellyfin ─────────────────────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-server me-2 text-info"></i>Jellyfin</span>
+    <a href="/servers/jellyfin/new" class="btn btn-outline-info btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Add Server
+    </a>
+  </div>
+  <div class="card-body p-0">
+    {% if jf_servers %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr>
+          <th>Name</th><th>URL</th><th>Roles</th><th>Libs</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for s in jf_servers %}
+          <tr>
+            <td class="fw-medium">{{ s.name }}</td>
+            <td class="text-secondary small">{{ s.url }}</td>
+            <td class="text-secondary small">{{ s.roles or '—' }}</td>
+            <td class="text-secondary small">{{ s.libs }}</td>
+            <td>
+              <span class="badge {% if s.enabled %}badge-enabled{% else %}badge-disabled{% endif %}">
+                {{ 'enabled' if s.enabled else 'disabled' }}
+              </span>
+            </td>
+            <td class="text-end">
+              <a href="/servers/jellyfin/{{ s.name }}" class="btn btn-outline-secondary btn-sm me-1">
+                <i class="bi bi-pencil me-1"></i>Edit
+              </a>
+              <button class="btn btn-outline-danger btn-sm"
+                      onclick="confirmDelete('/servers/jellyfin/{{ s.name }}/delete', '{{ s.name }}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-4 text-secondary text-center">
+      No Jellyfin servers configured yet.
+      <a href="/servers/jellyfin/new">Add your first one →</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Emby ─────────────────────────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-server me-2 text-warning"></i>Emby</span>
+    <a href="/servers/emby/new" class="btn btn-outline-warning btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Add Server
+    </a>
+  </div>
+  <div class="card-body p-0">
+    {% if emby_servers %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr>
+          <th>Name</th><th>URL</th><th>Roles</th><th>Libs</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for s in emby_servers %}
+          <tr>
+            <td class="fw-medium">{{ s.name }}</td>
+            <td class="text-secondary small">{{ s.url }}</td>
+            <td class="text-secondary small">{{ s.roles or '—' }}</td>
+            <td class="text-secondary small">{{ s.libs }}</td>
+            <td>
+              <span class="badge {% if s.enabled %}badge-enabled{% else %}badge-disabled{% endif %}">
+                {{ 'enabled' if s.enabled else 'disabled' }}
+              </span>
+            </td>
+            <td class="text-end">
+              <a href="/servers/emby/{{ s.name }}" class="btn btn-outline-secondary btn-sm me-1">
+                <i class="bi bi-pencil me-1"></i>Edit
+              </a>
+              <button class="btn btn-outline-danger btn-sm"
+                      onclick="confirmDelete('/servers/emby/{{ s.name }}/delete', '{{ s.name }}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-4 text-secondary text-center">
+      No Emby servers configured yet.
+      <a href="/servers/emby/new">Add your first one →</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Plex ──────────────────────────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="fw-semibold"><i class="bi bi-tv me-2 text-danger"></i>Plex</span>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/servers/plex">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label text-secondary small">Base URL</label>
+          <input type="text" class="form-control" name="plex_base_url"
+                 value="{{ plex.base_url }}" placeholder="https://plex.yourserver.com">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label text-secondary small">Auth Token</label>
+          <input type="password" class="form-control" name="plex_token"
+                 value="{{ plex.token }}" placeholder="X-Plex-Token">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label text-secondary small">Server Name</label>
+          <input type="text" class="form-control" name="plex_server_name"
+                 value="{{ plex.server_name }}" placeholder="My Plex Server">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label text-secondary small">Username (fallback auth)</label>
+          <input type="text" class="form-control" name="plex_user"
+                 value="{{ plex.user }}" placeholder="plex username">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label text-secondary small">Password (fallback auth)</label>
+          <input type="password" class="form-control" name="plex_pass" placeholder="••••••••">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label text-secondary small">Auto-invite Roles <span class="text-muted">(comma-separated)</span></label>
+          <input type="text" class="form-control" name="plex_roles"
+                 value="{{ plex.roles }}" placeholder="Member, Subscriber">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label text-secondary small">Libraries <span class="text-muted">(comma-separated or "all")</span></label>
+          <input type="text" class="form-control" name="plex_libs"
+                 value="{{ plex.libs }}" placeholder="all">
+        </div>
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="plex_enabled" id="plexEnabled"
+                   {% if plex.enabled %}checked{% endif %}>
+            <label class="form-check-label" for="plexEnabled">Enabled</label>
+          </div>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Save Plex Settings
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Jellyseerr ─────────────────────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="fw-semibold"><i class="bi bi-collection-play me-2 text-success"></i>Jellyseerr</span>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/servers/jellyseerr">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label text-secondary small">Jellyseerr URL</label>
+          <input type="text" class="form-control" name="jellyseerr_url"
+                 value="{{ jellyseerr.url }}" placeholder="http://10.10.20.100:5055">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label text-secondary small">API Key</label>
+          <input type="password" class="form-control" name="jellyseerr_api_key"
+                 value="{{ jellyseerr.api_key }}" placeholder="API key from Jellyseerr settings">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label text-secondary small">Linked Jellyfin Server Name
+            <span class="text-muted">(for user matching)</span>
+          </label>
+          <input type="text" class="form-control" name="jellyseerr_jellyfin_server"
+                 value="{{ jellyseerr.jellyfin_server }}" placeholder="MainJellyfin">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Save Jellyseerr Settings
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete confirmation form (hidden, submitted by JS) -->
+<form id="deleteForm" method="post" style="display:none;">
+  <input type="hidden" name="_confirm" value="1">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDelete(url, name) {
+  if (confirm('Remove server "' + name + '"? This cannot be undone.')) {
+    const form = document.getElementById('deleteForm');
+    form.action = url;
+    form.submit();
+  }
+}
+</script>
+{% endblock %}

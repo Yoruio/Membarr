@@ -11,7 +11,7 @@ def create_connection(db_file):
     try:
         conn = sqlite3.connect(db_file)
         print("Connected to db")
-    except Error as e:
+    except Exception as e:
         print("error in connecting to db")
     finally:
         if conn:
@@ -28,27 +28,43 @@ def checkTableExists(dbcon, tablename):
 
 conn = create_connection(DB_URL)
 
-# Checking if table exists
+# Enable WAL mode so the web UI process can read concurrently without blocking
+conn.execute("PRAGMA journal_mode=WAL")
+
+# Create clients table for fresh installs (V1.4 schema — no jellyfin/emby columns)
 if checkTableExists(conn, DB_TABLE):
-	print('Table exists.')
+    print('Table exists.')
 else:
     conn.execute(
     '''CREATE TABLE "clients" (
-    "id"	INTEGER NOT NULL UNIQUE,
-    "discord_id"	TEXT NOT NULL UNIQUE,
-    "email"	TEXT,
-    "jellyfin_username" TEXT,
-    "emby_username" TEXT,
+    "id"         INTEGER NOT NULL UNIQUE,
+    "discord_id" TEXT NOT NULL UNIQUE,
+    "email"      TEXT,
     PRIMARY KEY("id" AUTOINCREMENT)
     );''')
 
+# Always ensure server_accounts table exists
+conn.execute('''
+CREATE TABLE IF NOT EXISTS "server_accounts" (
+    "id"          INTEGER PRIMARY KEY AUTOINCREMENT,
+    "discord_id"  TEXT NOT NULL,
+    "server_type" TEXT NOT NULL,
+    "server_name" TEXT NOT NULL,
+    "username"    TEXT NOT NULL,
+    UNIQUE("discord_id", "server_type", "server_name")
+);''')
+conn.commit()
+
 update_table(conn, DB_TABLE)
+
+
+# ── Plex (email-based) functions ──────────────────────────────────────────────
 
 def save_user_email(username, email):
     if username and email:
         conn.execute(
             "INSERT OR REPLACE INTO clients(discord_id, email) VALUES(?, ?)",
-            (username, email)
+            (str(username), email)
         )
         conn.commit()
         print("User added to db.")
@@ -57,159 +73,97 @@ def save_user_email(username, email):
 
 def save_user(username):
     if username:
-        conn.execute("INSERT INTO clients (discord_id) VALUES (?)", (username,))
+        conn.execute("INSERT OR IGNORE INTO clients (discord_id) VALUES (?)", (str(username),))
         conn.commit()
         print("User added to db.")
     else:
         return "Username cannot be empty"
 
-def save_user_jellyfin(username, jellyfin_username):
-    if username and jellyfin_username:
-        conn.execute(
-            "INSERT OR REPLACE INTO clients(discord_id, jellyfin_username) VALUES(?, ?)",
-            (username, jellyfin_username)
-        )
-        conn.commit()
-        print("User added to db.")
-    else:
-        return "Discord and Jellyfin usernames cannot be empty"
-
-def save_user_all(username, email, jellyfin_username):
-    if username and email and jellyfin_username:
-        conn.execute(
-            "INSERT OR REPLACE INTO clients(discord_id, email, jellyfin_username) VALUES(?, ?, ?)",
-            (username, email, jellyfin_username)
-        )
-        conn.commit()
-        print("User added to db.")
-    elif username and email:
-        save_user_email(username, email)
-    elif username and jellyfin_username:
-        save_user_jellyfin(username, jellyfin_username)
-    elif username:
-        save_user(username)
-    else:
-        return "Discord username must all be provided"
-
 def get_useremail(username):
     if username:
         try:
             cursor = conn.execute(
-                "SELECT discord_id, email FROM clients WHERE discord_id = ?",
-                (username,)
+                "SELECT email FROM clients WHERE discord_id = ?",
+                (str(username),)
             )
-            for row in cursor:
-                email = row[1]
-            if email:
-                return email
-            else:
-                return "No email found"
-        except:
-            return "error in fetching from db"
-    else:
-        return "username cannot be empty"
-
-def get_jellyfin_username(username):
-    """
-    Get jellyfin username of user based on discord user id
-
-    param   username: discord user id
-
-    return  jellyfin username
-    """
-    if username:
-        try:
-            cursor = conn.execute(
-                "SELECT discord_id, jellyfin_username FROM clients WHERE discord_id = ?",
-                (username,)
-            )
-            for row in cursor:
-                jellyfin_username = row[1]
-            if jellyfin_username:
-                return jellyfin_username
-            else:
-                return "No users found"
+            row = cursor.fetchone()
+            return row[0] if row and row[0] else "No email found"
         except:
             return "error in fetching from db"
     else:
         return "username cannot be empty"
 
 def remove_email(username):
-    """
-    Sets email of discord user to null in database
-    """
+    """Sets email of discord user to null in database."""
     if username:
-        conn.execute("UPDATE clients SET email = NULL WHERE discord_id = ?", (username,))
+        conn.execute("UPDATE clients SET email = NULL WHERE discord_id = ?", (str(username),))
         conn.commit()
         print(f"Email removed from user {username} in database")
         return True
     else:
-        print(f"Username cannot be empty.")
+        print("Username cannot be empty.")
         return False
 
-def remove_jellyfin(username):
-    """
-    Sets jellyfin username of discord user to null in database
-    """
-    if username:
-        conn.execute("UPDATE clients SET jellyfin_username = NULL WHERE discord_id = ?", (username,))
-        conn.commit()
-        print(f"Jellyfin username removed from user {username} in database")
-        return True
-    else:
-        print(f"Username cannot be empty.")
-        return False
 
-def save_user_emby(username, emby_username):
-    if username and emby_username:
+# ── Generic multi-server account functions ────────────────────────────────────
+
+def save_server_account(discord_id, server_type, server_name, username):
+    """Save or update a media server account for a Discord user."""
+    if discord_id and server_type and server_name and username:
+        # Ensure the user exists in clients
         conn.execute(
-            "INSERT OR REPLACE INTO clients(discord_id, emby_username) VALUES(?, ?)",
-            (username, emby_username)
+            "INSERT OR IGNORE INTO clients(discord_id) VALUES(?)",
+            (str(discord_id),)
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO server_accounts(discord_id, server_type, server_name, username) VALUES(?, ?, ?, ?)",
+            (str(discord_id), server_type, server_name, username)
         )
         conn.commit()
-        print("User added to db.")
+        print(f"Server account saved: {discord_id} → {server_type}/{server_name}: {username}")
     else:
-        return "Discord and Emby usernames cannot be empty"
+        return "All parameters are required"
 
-def get_emby_username(username):
-    """
-    Get emby username of user based on discord user id
-    """
-    if username:
-        try:
-            cursor = conn.execute(
-                "SELECT discord_id, emby_username FROM clients WHERE discord_id = ?",
-                (username,)
-            )
-            for row in cursor:
-                emby_username = row[1]
-            if emby_username:
-                return emby_username
-            else:
-                return "No users found"
-        except:
-            return "error in fetching from db"
-    else:
-        return "username cannot be empty"
+def get_server_account(discord_id, server_type, server_name):
+    """Return the username for a Discord user on a given server, or None."""
+    if discord_id and server_type and server_name:
+        cursor = conn.execute(
+            "SELECT username FROM server_accounts WHERE discord_id=? AND server_type=? AND server_name=?",
+            (str(discord_id), server_type, server_name)
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+    return None
 
-def remove_emby(username):
-    """
-    Sets emby username of discord user to null in database
-    """
-    if username:
-        conn.execute("UPDATE clients SET emby_username = NULL WHERE discord_id = ?", (username,))
+def remove_server_account(discord_id, server_type, server_name):
+    """Delete the server_accounts row for a Discord user on a given server."""
+    if discord_id and server_type and server_name:
+        conn.execute(
+            "DELETE FROM server_accounts WHERE discord_id=? AND server_type=? AND server_name=?",
+            (str(discord_id), server_type, server_name)
+        )
         conn.commit()
-        print(f"Emby username removed from user {username} in database")
+        print(f"Server account removed: {discord_id} from {server_type}/{server_name}")
         return True
-    else:
-        print(f"Username cannot be empty.")
-        return False
+    return False
 
+def get_all_server_accounts(discord_id):
+    """Return all server accounts for a Discord user as list of (server_type, server_name, username)."""
+    cursor = conn.execute(
+        "SELECT server_type, server_name, username FROM server_accounts WHERE discord_id=?",
+        (str(discord_id),)
+    )
+    return cursor.fetchall()
+
+
+# ── User management ───────────────────────────────────────────────────────────
 
 def delete_user(username):
+    """Delete a user from both clients and server_accounts tables."""
     if username:
         try:
-            conn.execute("DELETE FROM clients WHERE discord_id = ?", (username,))
+            conn.execute("DELETE FROM clients WHERE discord_id = ?", (str(username),))
+            conn.execute("DELETE FROM server_accounts WHERE discord_id = ?", (str(username),))
             conn.commit()
             return True
         except:
@@ -218,10 +172,13 @@ def delete_user(username):
         return "username cannot be empty"
 
 def read_all():
+    """Return all users as list of (id, discord_id, email, server_accounts).
+    server_accounts is a list of (server_type, server_name, username) tuples."""
     cur = conn.cursor()
-    cur.execute("SELECT * FROM clients")
+    cur.execute("SELECT id, discord_id, email FROM clients")
     rows = cur.fetchall()
-    all = []
+    result = []
     for row in rows:
-        all.append(row)
-    return all
+        accounts = get_all_server_accounts(row[1])
+        result.append((row[0], row[1], row[2], accounts))
+    return result
